@@ -1,0 +1,142 @@
+クラス図
+```mermaid
+classDiagram
+    class AppController {
+      +Start()
+      +OpenHome()
+      +OpenGame(GameStartRequest)
+    }
+
+    class HomeScreen
+    class NewGameScreen
+    class GameScreen
+    class ResultScreen
+    class SettingsScreen
+    class StatsScreen
+
+    class GameSessionController {
+      -PuzzleDefinition puzzle
+      -PuzzleState state
+      +StartSession(PuzzleDefinition)
+      +PlaceQueen(CellPos)
+      +ToggleMark(CellPos)
+      +Undo()
+      +Redo()
+      +RequestHint()
+      +Restart()
+      +CheckSolved()
+    }
+
+    class PuzzleDefinition {
+      +int size
+      +RegionMap regions
+      +SolutionGrid solution
+      +DifficultyRating difficulty
+      +int seed
+    }
+
+    class PuzzleState {
+      +CellState[][] cells
+      +float elapsedSeconds
+      +int hintUsedCount
+      +int mistakeCount
+      +bool isSolved
+    }
+
+    class PuzzleGenerator {
+      +Generate(GenerationRequest) PuzzleDefinition
+    }
+
+    class SolutionGenerator {
+      +GenerateSolution(int size, int seed) SolutionGrid
+    }
+
+    class RegionGenerator {
+      +BuildRegions(SolutionGrid, int seed) RegionMap
+    }
+
+    class UniquenessSolver {
+      +HasUniqueSolution(RegionMap) bool
+      +CountSolutions(RegionMap, int limit) int
+    }
+
+    class HumanDifficultyEstimator {
+      +Estimate(RegionMap) DifficultyReport
+    }
+
+    class HumanSolver {
+      +Solve(RegionMap) HumanSolveReport
+    }
+
+    class HintEngine {
+      +FindNextHint(PuzzleState, PuzzleDefinition) Hint
+    }
+
+    class PuzzleValidator {
+      +ValidateMove(PuzzleState, PuzzleDefinition, CellPos) ValidationResult
+      +IsSolved(PuzzleState, PuzzleDefinition) bool
+    }
+
+    class SaveRepository {
+      +SaveSession(PuzzleState, PuzzleDefinition)
+      +LoadSession()
+    }
+
+    class SettingsRepository {
+      +Load()
+      +Save(SettingsData)
+    }
+
+    class StatsRepository {
+      +RecordClear(ResultRecord)
+      +LoadStats()
+    }
+
+    class DifficultyRating {
+      +string label
+      +int stars
+      +float score
+    }
+
+    class DifficultyReport {
+      +float score
+      +string label
+      +int maxTechniqueLevel
+      +int inferenceCount
+      +int assumptionCount
+      +int backtrackCount
+    }
+
+    AppController --> HomeScreen
+    AppController --> NewGameScreen
+    AppController --> GameScreen
+    AppController --> ResultScreen
+    AppController --> SettingsScreen
+    AppController --> StatsScreen
+
+    GameScreen --> GameSessionController
+    GameSessionController --> PuzzleDefinition
+    GameSessionController --> PuzzleState
+    GameSessionController --> PuzzleValidator
+    GameSessionController --> HintEngine
+    GameSessionController --> SaveRepository
+
+    PuzzleGenerator --> SolutionGenerator
+    PuzzleGenerator --> RegionGenerator
+    PuzzleGenerator --> UniquenessSolver
+    PuzzleGenerator --> HumanDifficultyEstimator
+    HumanDifficultyEstimator --> HumanSolver
+
+    ResultScreen --> StatsRepository
+    SettingsScreen --> SettingsRepository
+
+```
+
+設計意図は次です。
+ PuzzleGenerator は問題作成専用
+ UniquenessSolver は唯一解判定専用
+ HumanSolver は人間らしい解法再現専用
+ GameSessionController は UI とルールの仲介役
+ PuzzleValidator は盤面チェック専用
+ HintEngine は HumanSolver の次の一手を使う
+この分離をしておくと、生成・判定・ヒント・難易度推定が互いに汚染されません。

@@ -1,0 +1,129 @@
+前提
+
+ここでは Queens Puzzle を、いま一般的によく見かける次のルールのパズルとして定義します。
+
+N x N の盤面に N 個の Queen を置く。
+各 行 に Queen はちょうど 1 個。
+各 列 に Queen はちょうど 1 個。
+各 領域 に Queen はちょうど 1 個。領域は、色で分かれています。
+Queen 同士は 8方向に隣接 してはいけない。
+問題として最初に見せる情報は 領域分割のみ。Queen は 0 個から解かせる。
+この前提であれば、「自動生成」「一般的なパズルアプリらしい体験」「人間向け難易度推定」が自然に設計できます。
+
+仕様案
+
+ターゲットはスマホ縦持ちをメインで考える。
+ブラウザで動作するものにする。
+TypeScriptを用いて実装する。
+基本モードは New Game、Continue、Settings、Stats。
+問題サイズは 7x7 / 8x8 / 9x9 / 10x10 / 11x11 / 12x12 を推奨。初期値は 8x8。
+難易度表示は ON/OFF 設定可能。OFF のときはラベル非表示、問題自体は通常通り遊べる。
+新規ゲーム開始時に サイズ と任意で 目標難易度 を選べる。
+プレイ中セル状態は Empty / Queen / Cross の 3 状態。
+操作は標準的に、タップで Empty -> Cross -> Queen -> Empty とループする。初期状態は Empty。
+補助機能として Undo、Redo、Restart、Hint、Auto-save、Resume を持つ。
+設定で Auto Cross Assist、Difficulty Label を切替可能にする。
+クリア条件は全制約を満たした時点。ミス即終了はなし。一般的な快適性を優先する。
+結果画面には クリア時間、使用ヒント数、推定難易度 を表示する。
+統計は 総クリア数、サイズ別ベストタイム、難易度別クリア数 を保存する。
+問題をBase62でデコードしてURLに埋め込んで他の人に共有できるようにする。
+
+画面設計
+
+- Home
+Continue
+New Game
+Stats
+Settings
+
+- New Game
+Board Size
+Target Difficulty
+Start
+
+- Game
+盤面
+タイマー
+Undo / Redo / Hint / Restart
+難易度ラベル
+一時停止メニュー
+
+- Result
+Cleared
+Time / Hints / Difficulty
+Replay / New Puzzle / Home
+
+- Settings
+Show Difficulty Estimate
+Auto Cross Assist
+Haptics / Sound
+
+問題生成仕様
+
+問題は毎回 自動生成 する。
+生成結果は必ず 解が一意 であることを保証する。
+各問題は 盤面サイズ、領域マップ、一意解、推定難易度 を持つ。
+生成フローは次を推奨する。
+まず完成解となる Queen 配置を 1 つ作る。
+その Queen 配置を基準に、各 Queen を 1 つだけ含む 連結領域 を生成する。
+領域形状の偏りをチェックする。細すぎる領域や見づらすぎる領域は棄却する。
+その領域マップだけを問題として solver にかける。
+解が一意でなければ棄却して再生成する。
+一意なら難易度推定を実行し、メタデータとして保存する。
+
+難易度推定ロジック
+
+難易度は コンピュータの探索量 ではなく、人間が使いやすい手筋の出現順 を基準に推定する。
+まず HumanSolver を別途用意し、次のような手筋だけで順に解かせる。
+単一候補の領域
+単一候補の行/列
+Queen 隣接禁止による消去
+領域と行列のロック
+2手先までの限定的な仮置き
+各問題について以下を記録する。
+使った最難手筋
+手筋の切替回数
+候補削減回数
+仮置き回数
+分岐数
+これをスコア化して Easy / Normal / Hard / Expert / Extreme に丸める。
+表示用にはラベルと星 1-5 の両方を持てるようにする。
+Difficulty Estimate OFF はあくまで UI非表示。推定値自体は問題メタデータとして保持する設計が扱いやすい。
+
+内部設計
+
+PuzzleDefinition
+サイズ、領域マップ、解、推定難易度
+PuzzleState
+現在の Queen 配置、Cross 配置、経過時間、Undo 履歴
+PuzzleValidator
+行・列・領域・隣接制約の検証
+PuzzleGenerator
+解生成、領域生成、棄却判定
+UniquenessSolver
+解の一意性確認専用
+HumanDifficultyEstimator
+人間向け難易度算出
+GameSession
+プレイ進行、保存、リジューム
+SettingsRepository
+難易度表示 ON/OFF などの永続化
+StatsRepository
+戦績保存
+
+実装方針の要点
+
+生成器と solver と難易度推定器は必ず分離する。
+唯一解チェック用 solver と 人間難易度推定用 solver は別物にする。
+難易度推定は生成直後に非同期実行してキャッシュしてよい。
+盤面描画とゲームルール判定を分離し、UI 変更でロジックが壊れない構造にする。
+乱数 seed を保存しておくと、不具合再現と共有がしやすい。
+
+おすすめの初期スコープ
+
+まずは 8x8 固定
+New Game / Continue / Settings / Result
+自動生成
+一意解保証
+難易度推定
+Undo / Hint / Auto-save

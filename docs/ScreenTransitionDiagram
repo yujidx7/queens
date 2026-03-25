@@ -1,0 +1,44 @@
+```mermaid
+stateDiagram-v2
+    [*] --> Splash
+    Splash --> Home
+
+    Home --> NewGame
+    Home --> ContinueGame: セーブあり
+    Home --> Stats
+    Home --> Settings
+
+    NewGame --> Game: Start
+    ContinueGame --> Game
+    Stats --> Home
+    Settings --> Home
+
+    Game --> PauseMenu: 一時停止
+    PauseMenu --> Game: Resume
+    PauseMenu --> Settings: 設定
+    PauseMenu --> ConfirmRestart: Restart
+    PauseMenu --> ConfirmQuit: Homeへ戻る
+
+    ConfirmRestart --> Game: Yes
+    ConfirmRestart --> PauseMenu: No
+
+    ConfirmQuit --> Home: Yes
+    ConfirmQuit --> PauseMenu: No
+
+    Game --> HintDialog: Hint
+    HintDialog --> Game
+
+    Game --> Result: クリア
+    Result --> Game: Replay
+    Result --> NewGame: New Puzzle
+    Result --> Home
+
+```
+
+補足です。
+ Home は Continue / New Game / Stats / Settings
+ NewGame は サイズ選択 と 目標難易度 の指定
+ Game がメイン画面
+ PauseMenu から設定を開いて戻れる
+ Result から同条件リプレイ、次の問題、Home を選べる
+ Difficulty Estimate の ON/OFF は Settings で切替

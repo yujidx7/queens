@@ -1,0 +1,115 @@
+生成アルゴリズム詳細
+
+生成で重要なのは次の 4 点です。
+ 必ず解ける
+ 必ず唯一解
+ 見た目が自然
+ 目標難易度に寄せられる
+生成パイプラインはこの形が扱いやすいです。
+
+1. 解の生成
+N x N 盤面に Queen を N 個置く完成解を 먼저作る
+制約
+各行 1 個
+各列 1 個
+隣接不可
+実装は backtracking + forward checking が基本
+行ごとに 1 個置く方式が単純
+列使用済み、隣接禁止、将来行の生存候補数を見ながら枝刈りする
+
+2. 領域生成
+各 Queen を核として N 個の領域を作る
+それぞれの領域に対応 Queen が 1 個だけ入るようにする
+各領域は必ず 連結
+生成方法の一例
+1. Queen 位置を各領域の seed にする
+2. 未割当セルをランダム順で近傍拡張
+3. 連結を壊さない条件で拡張
+4. 極端に細長い、1 マス通路だらけ、孤立感が強い形を棄却
+領域品質指標例
+最大縦横比
+周長/面積比
+1 セル幅通路数
+盤面全体の視認性スコア
+
+3. 唯一解チェック
+問題として見せるのは 領域だけ
+UniquenessSolver.CountSolutions(regionMap, limit = 2) を実行
+返り値が 1 のときだけ採用
+0 は生成不正
+2 以上 は複数解なので棄却
+
+4. 難易度推定
+採用候補に HumanDifficultyEstimator を実行
+目標難易度 が指定されている場合は、その帯域に入るまで再生成
+許容誤差を持たせる
+例: Normal 目標なら Normal ± 1 を許容
+生成時間が長くなりすぎる場合は fallback する
+例: 一定回数失敗後は最も近い難易度の候補を採用
+5. 生成アルゴリズム全体
+ Generate(request):
+   loop until maxAttempts:
+     solution = GenerateSolution(size, seed)
+     if solution == null:
+       continue
+ 
+     regions = BuildRegions(solution, seed2)
+     if !PassRegionQuality(regions):
+       continue
+ 
+     solutionCount = CountSolutions(regions, 2)
+     if solutionCount != 1:
+       continue
+ 
+     difficulty = Estimate(regions)
+ 
+     if MatchesTargetDifficulty(difficulty, request.targetDifficulty):
+       return PuzzleDefinition(solution, regions, difficulty, seed)
+ 
+     keep as fallback if closer than current best
+ 
+   return bestFallback or fail
+
+6. GenerateSolution 詳細
+行 r に対し、置ける列候補を列挙
+候補列 c は以下を満たす
+列未使用既存 Queen と隣接しない
+将来行に候補が残る
+候補順はランダム化するが、将来詰みにくい順に重み付けする
+全行を置けたら完成
+
+7. BuildRegions 詳細
+初期状態で各 Queen セルを各領域へ所属
+残りセルを frontier ベースで拡張
+近傍優先で連結を保つ
+一定確率で形を丸く保つバイアスを入れる
+領域サイズの偏りを制限する
+例: ideal = N
+ideal ± 2 程度に寄せる
+
+8. 品質改善の補助ルール
+同じ行に同じ領域セルが偏りすぎない
+1 領域が盤面全体を蛇行しすぎない
+対称すぎる領域配置は多解化しやすいのでやや避ける
+角や辺に極端な自由度が集中しないようにする
+
+9. 目標難易度制御のコツ
+Easy に寄せる
+単純な領域
+行列と領域の交差で早期に単一候補が出る形
+Hard に寄せる
+候補が複数領域で相互依存する形
+すぐには単一候補が出ない形
+Extreme に寄せる
+仮定が必要な中盤を意図的に作る
+ただし理不尽化しやすいので数を絞る
+
+おすすめの実装順序
+1. UniquenessSolver
+2. SolutionGenerator
+3. RegionGenerator
+4. HumanSolver
+5. HumanDifficultyEstimator
+6. HintEngine
+7. UI と保存
+この順にすると、まず「成立する問題」を作れます。その後で「人間にとってどう見えるか」を積み上げられます。

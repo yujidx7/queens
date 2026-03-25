@@ -1,0 +1,77 @@
+難易度推定アルゴリズム詳細
+目的は「CPU にとって難しい」ではなく、「人間が自然に解くとどれだけ難しいか」を推定することです。
+そのため、HumanSolver を段階的な手筋ベースで実装します。
+
+1. 入力
+RegionMap
+盤面サイズ N
+ルールセット
+
+2. 内部状態
+各セルの 候補可否
+行ごとの残り候補数
+列ごとの残り候補数
+領域ごとの残り候補数
+Queen 確定セル
+禁止セル
+解法ログ
+
+3. 手筋レベル
+L1: Naked Single
+ある行、列、領域に置ける場所が 1 マスしかない
+L2: Adjacency Elimination
+Queen 隣接禁止から候補を広く消せる
+L3: Line/Region Lock
+ある領域の候補が実質 1 行または 1 列に閉じるので、他領域側を消せる
+L4: Pair/Pattern Constraint
+2 領域または 2 行列の候補組合せが限定され、他候補を削れる
+L5: Limited Assumption
+候補 2 択程度に仮置きして矛盾を導く
+L6: Deeper Branching
+2 段以上の仮定が必要
+
+4. 推定手順
+ 1. 初期候補を構築
+ 2. L1 -> L2 -> L3 -> L4 を反復
+ 3. 進展が止まったら L5
+ 4. まだ止まるなら L6
+ 5. 完全に解けたらログを集計
+ 6. 解けなければ「人間解法未対応」として最上位難度扱い
+
+5. ログとして取る値
+maxTechniqueLevel
+techniqueUsageCount[level]
+totalInferenceCount
+candidateRemovedCount
+assumptionCount
+maxBranchDepth
+firstAssumptionStepIndex
+forcedMoveChainMaxLength
+
+6. スコア例
+score =
+  10 * maxTechniqueLevel
+  + 0.8 * totalInferenceCount
+  + 1.2 * techniqueSwitchCount
+  + 2.5 * assumptionCount
+  + 3.0 * maxBranchDepth
+  - 0.3 * forcedMoveChainMaxLength
+
+7. 難易度ラベル例
+0 - 19: Easy
+20 - 34: Normal
+35 - 54: Hard
+55 - 79: Expert
+80+: Extreme
+
+8. 実運用上の補正
+同じスコアでも 初手から仮定が必要 なら 1 段階上げる
+L1/L2 だけで最後まで解ける なら Easy に寄せる
+推論回数が多すぎて冗長な場合は Hard 以上に寄せる
+サイズ ごとに正規化する
+たとえば 12x12 は素点が高くなりやすいため、サイズ別閾値を持つ
+
+9. UI 表示
+Difficulty Estimate: ON のときだけ表示
+表示内容は Hard / ★★★ / 推定
+推定 文言を付けて絶対評価に見せすぎない
