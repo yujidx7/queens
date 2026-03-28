@@ -1,13 +1,24 @@
 # Queens
 
-Minimal Queens puzzle app (prototype).
+Minimal Queens puzzle app — prototype implementation (TypeScript + React + Vite).
 
-Prerequisites
+## About Queens (short)
+
+Queens is a logic puzzle where N queens must be placed on an N×N board with these rules:
+
+- Exactly one queen per row.
+- Exactly one queen per column.
+- Exactly one queen per region (regions are shown as colored areas in this app).
+- Queens must not be adjacent to each other (including diagonals).
+
+This app generates puzzles with unique solutions, shows regions by color, and runs entirely in the browser.
+
+## Prerequisites
 
 - Node.js >= 20.19.0
 - npm
 
-Quick start
+## Quick start
 
 Install dependencies:
 
@@ -15,38 +26,24 @@ Install dependencies:
 npm install
 ```
 
-Run dev server:
+Run the development server:
 
 ```bash
 npm run dev
 ```
 
-Run unit tests:
+Run tests:
 
 ```bash
 npm test
 ```
 
-Notes
+## Notes
 
 - Tests use Vitest. If you see native binding errors, ensure Node version >= 20.19.0.
-- The app autosaves sessions to `localStorage` and preserves `history` and `future` for undo/redo.
+- The app autosaves sessions to `localStorage` and preserves `history`/`future` to support undo/redo.
 
-Next steps
+## Next steps
 
-- Polish UI and add integration/E2E tests.
+- Polish UI and accessibility, add more integration/E2E tests, optionally provide CI deployment to GitHub Pages or similar.
 
-# Queens
-
-Minimal scaffold for Queens puzzle app (TypeScript + React + Vite).
-
-Run:
-
-```bash
-npm install
-npm run dev
-```
-
-This repo contains initial core logic for solution generation and the app shell.
-
-# queens

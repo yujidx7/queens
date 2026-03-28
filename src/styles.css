@@ -33,13 +33,18 @@ button {
 
 /* Board styles: responsive and touch-friendly */
 .board-container {
-  width: min(100%, 520px);
+  width: 100%;
+  max-width: 520px;
   margin: 0 auto;
   padding: 8px 0;
+  box-sizing: border-box;
 }
 .board-grid {
   display: grid;
-  gap: 4px;
+  gap: 0; /* no gaps between cells; keep borders visible */
+  /* ensure grid fits within container: each cell will be at most (container width - gaps) / n */
+  width: 100%;
+  touch-action: none; /* allow full pointermove handling for touch */
 }
 .board-cell {
   border: 1px solid #ccc;
@@ -51,7 +56,7 @@ button {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   padding: 6px; /* larger touch target */
-  min-width: 32px;
+  min-width: 0; /* allow shrinking */
 }
 .cell-empty { background: #fff; }
 .cell-cross { background: #f0f0f0; }
@@ -60,7 +65,24 @@ button {
 
 @media (max-width: 480px) {
   .board-container { width: 100%; padding: 6px; }
-  .cell-content { font-size: 1.4rem; }
+  .cell-content { font-size: 1.2rem; }
+  /* ensure cells shrink a bit for small screens */
+  .board-grid { gap: 3px; }
+  .board-cell { padding: 4px; }
+}
+
+/* ensure the board grid template columns are responsive by setting each cell to auto and using grid-template-columns from inline style in component */
+
+/* violation overlay */
+.violation-overlay {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15), 0 0 0 1px rgba(220, 38, 38, 0.35) inset;
+  pointer-events: none;
 }
 
 .board-container { width: 100%; }

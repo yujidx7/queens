@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { PuzzleDefinition, createEmptyState, PuzzleState } from './core/puzzle';
+
 import { GameSessionController } from './core/gameSession';
 import Board from './components/Board';
 import { findHint } from './core/hintEngine';
@@ -17,6 +18,7 @@ export default function App() {
   const [puzzle, setPuzzle] = useState<PuzzleDefinition | null>(null);
   const [state, setState] = useState<PuzzleState | null>(null);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [history, setHistory] = useState<PuzzleState[]>([]);
   const [hasSaved, setHasSaved] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -27,24 +29,44 @@ export default function App() {
   const [future, setFuture] = useState<PuzzleState[]>([]);
   const [showResult, setShowResult] = useState(false);
 
+  const [genAttempt, setGenAttempt] = useState<number | null>(null);
+  const genAbortRef = useRef<AbortController | null>(null);
+
+  const elapsedMsRef = useRef<number>(0);
   useEffect(() => {
     setLocale(locale);
   }, [locale]);
 
   const newPuzzle = useCallback(async () => {
     setLoading(true);
+    setGenerating(true);
+    setGenAttempt(null);
+    const ac = new AbortController();
+    genAbortRef.current = ac;
     try {
-      const p = await controller.generatePuzzle(size, 2000);
+      const p = await controller.generatePuzzle(size, 2000, {
+        signal: ac.signal,
+        onProgress: (attempt) => setGenAttempt(attempt),
+      });
       setPuzzle(p);
       const s = createEmptyState(size);
       setState(s);
       setHistory([s]);
       setScreen('game');
-    } catch (e) {
-      console.error(e);
-      alert('パズル生成に失敗しました');
+      // reset high-precision timer on new puzzle
+      elapsedMsRef.current = 0;
+    } catch (e: any) {
+      if (e && e.message === 'aborted') {
+        // user cancelled generation
+      } else {
+        console.error(e);
+        alert('パズル生成に失敗しました');
+      }
     } finally {
       setLoading(false);
+      setGenerating(false);
+      setGenAttempt(null);
+      genAbortRef.current = null;
     }
   }, [size]);
 
@@ -92,10 +114,36 @@ export default function App() {
         pushHistory(s);
         // check solved
         if (isSolved(s, puzzle)) {
+          const timeSec = Math.round(elapsedMsRef.current / 10) / 100; // centiseconds
           StatsRepo.recordClear({
             timestamp: Date.now(),
             size: puzzle.size,
-            timeSeconds: s.elapsedSeconds,
+            timeSeconds: timeSec,
+            hintsUsed: s.hintUsedCount,
+            difficultyLabel: puzzle.difficulty?.label,
+          });
+          setShowResult(true);
+        }
+        return s;
+      });
+    },
+    [puzzle, pushHistory],
+  );
+
+  const setCell = useCallback(
+    (pos: { r: number; c: number }, value: 'Empty' | 'Cross' | 'Queen') => {
+      if (!puzzle) return;
+      setState((curState) => {
+        if (!curState) return curState;
+        const s = JSON.parse(JSON.stringify(curState)) as PuzzleState;
+        s.cells[pos.r][pos.c] = value;
+        pushHistory(s);
+        if (isSolved(s, puzzle)) {
+          const timeSec = Math.round(elapsedMsRef.current / 10) / 100; // centiseconds
+          StatsRepo.recordClear({
+            timestamp: Date.now(),
+            size: puzzle.size,
+            timeSeconds: timeSec,
             hintsUsed: s.hintUsedCount,
             difficultyLabel: puzzle.difficulty?.label,
           });
@@ -198,16 +246,31 @@ export default function App() {
     return findHint(puzzle, state);
   }, [puzzle, state]);
 
-  // timer: increment elapsedSeconds when game in progress
+  // timer: high-precision internal update at ~10ms, UI/display update at 100ms
   useEffect(() => {
     if (!state || showResult) return;
-    const id = setInterval(() => {
+
+    // keep internal ms in sync when state is set externally
+    elapsedMsRef.current = Math.round(state.elapsedSeconds * 1000);
+
+    const hiId = setInterval(() => {
+      // add ~10ms to internal counter
+      elapsedMsRef.current = Math.round(elapsedMsRef.current + 10);
+    }, 10);
+
+    const uiId = setInterval(() => {
+      // update displayed elapsedSeconds at 100ms resolution (one decimal)
       setState((s) => {
         if (!s) return s;
-        return { ...s, elapsedSeconds: s.elapsedSeconds + 1 };
+        const next = Math.round((elapsedMsRef.current / 100)) / 10; // tenths
+        return { ...s, elapsedSeconds: next };
       });
-    }, 1000);
-    return () => clearInterval(id);
+    }, 100);
+
+    return () => {
+      clearInterval(hiId);
+      clearInterval(uiId);
+    };
   }, [state, showResult]);
 
   return (
@@ -271,7 +334,7 @@ export default function App() {
               <div style={{ marginBottom: 8 }}>
                 Difficulty: {puzzle.difficulty?.label} ★{puzzle.difficulty?.stars}
               </div>
-              <Board state={state} onToggle={toggleCell} regions={puzzle.regions} />
+              <Board state={state} onToggle={toggleCell} regions={puzzle.regions} onSetCell={setCell} />
               <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
                 <button onClick={undo} disabled={history.length <= 1}>
                   {t('undo')}
@@ -313,7 +376,7 @@ export default function App() {
                 >
                   <div style={{ background: 'white', padding: 16, borderRadius: 6, minWidth: 280 }}>
                     <h2>{t('solved')}</h2>
-                    <div>Time: {state.elapsedSeconds}s</div>
+                    <div>Time: {(elapsedMsRef.current / 1000).toFixed(2)}s</div>
                     <div>Hints used: {state.hintUsedCount}</div>
                     <div>
                       Difficulty: {puzzle.difficulty?.label} ★{puzzle.difficulty?.stars}
@@ -347,10 +410,11 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => {
+                          const timeSec = Math.round(elapsedMsRef.current / 10) / 100;
                           StatsRepo.recordClear({
                             timestamp: Date.now(),
                             size: puzzle.size,
-                            timeSeconds: state.elapsedSeconds,
+                            timeSeconds: timeSec,
                             hintsUsed: state.hintUsedCount,
                             difficultyLabel: puzzle.difficulty?.label,
                           });
@@ -374,6 +438,38 @@ export default function App() {
                         }}
                       >
                         {t('share')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* generation progress / cancel overlay */}
+              {loading && generating && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 60,
+                  }}
+                >
+                  <div style={{ background: 'white', padding: 16, borderRadius: 6, minWidth: 240 }}>
+                    <div style={{ marginBottom: 8 }}>{t('generating')}...</div>
+                    <div style={{ marginBottom: 8 }}>Attempts: {genAttempt ?? '—'}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => {
+                          genAbortRef.current?.abort();
+                        }}
+                      >
+                        Cancel
                       </button>
                     </div>
                   </div>
