@@ -35,7 +35,19 @@ const Cell = React.memo(function Cell({ r, c, cell, onToggle, region }: CellProp
     style.border = `1px solid hsl(${hue} ${Math.max(10, saturation - 60)}% ${Math.max(20, baseLight - 40)}%)`;
   }
   return (
-    <div role="button" tabIndex={0} className={`board-cell ${cls}`} style={style}>
+    <div
+      role="button"
+      tabIndex={0}
+      className={`board-cell ${cls}`}
+      style={style}
+      onClick={() => onToggle({ r, c })}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle({ r, c });
+        }
+      }}
+    >
       <div className="cell-content">{content}</div>
     </div>
   );
@@ -135,7 +147,24 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
     dragRef.current.startPos = pos;
     dragRef.current.lastPos = pos;
     dragRef.current.startValue = state.cells[pos.r][pos.c];
-    dragRef.current.mode = null; // will set on move based on startValue
+    // set mode immediately and apply change to the start cell so pointer-down affects it
+    const startVal = dragRef.current.startValue;
+    if (startVal === 'Cross') {
+      dragRef.current.mode = 'remove';
+      // remove cross from start cell
+      if (state.cells[pos.r][pos.c] === 'Cross') {
+        if (onSetCell) onSetCell(pos, 'Empty');
+        else onToggle(pos);
+      }
+    } else if (startVal === 'Empty') {
+      dragRef.current.mode = 'place';
+      if (state.cells[pos.r][pos.c] !== 'Cross') {
+        if (onSetCell) onSetCell(pos, 'Cross');
+        else onToggle(pos);
+      }
+    } else {
+      dragRef.current.mode = null;
+    }
   }
 
   function onGridPointerMove(e: React.PointerEvent) {
