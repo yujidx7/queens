@@ -47,3 +47,15 @@ npm test
 
 - Polish UI and accessibility, add more integration/E2E tests, optionally provide CI deployment to GitHub Pages or similar.
 
+## Deploy to GitHub Pages (using Git Bash)
+
+If you want to publish the built site to GitHub Pages from your local machine using Git Bash, run the following commands from the repository root. This assumes your repository is named `queens` and your remote is `origin`.
+
+```bash
+# install deps and build
+npm install
+npm run build
+
+# push built files (dist) to the gh-pages branch using git subtree
+git run deploy
+```
