@@ -163,6 +163,9 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
 
   // Helper: set a cell to a specific target value. Prefer onSetCell if provided.
   function setCellTo(pos: { r: number; c: number }, target: 'Empty' | 'Cross' | 'Queen') {
+    // Do not modify existing Queen cells during long-press operations
+    const curCell = state.cells[pos.r][pos.c];
+    if (curCell === 'Queen') return;
     if (onSetCell) {
       onSetCell(pos, target);
       return;
@@ -218,9 +221,15 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
       const A = longRef.current.startValue;
       if (start && A != null) {
         const target = A === 'Empty' ? 'Cross' : A === 'Cross' ? 'Empty' : null;
-        if (target) setCellTo(start, target);
-        else cycleCellOnce(start);
-        longRef.current.applied.add(`${start.r}-${start.c}`);
+        if (target) {
+          // only apply if start cell is not a Queen
+          if (state.cells[start.r][start.c] !== 'Queen') {
+            setCellTo(start, target);
+            longRef.current.applied.add(`${start.r}-${start.c}`);
+          }
+        } else {
+          // A === 'Queen' -> do not change queen on long-press
+        }
       }
     }, 330);
   }

@@ -23,7 +23,7 @@ Specification
   - If A is `Queen`: no mass-fill is performed; the behavior falls back to a short-press on the start cell.
   - "Touched cells" includes the start cell and any cell the pointer moved into while the press was active.
   - The fill operation is applied immediately as the user touches cells during the long press. Specifically:
-    - The start cell is updated when the long-press condition is reached (after 0.33 seconds / 330 ms) or when the user moves off the start cell while still pressing.
+    - The start cell is updated when the long-press condition is reached (after 0.33 seconds / 330 ms) or when the user moves off the start cell while still pressing. Cells that already contain a `Queen` are never modified by long-press operations.
     - Any other cell the pointer moves into while the long press is active is updated instantly when touched.
     - The target value for these immediate updates is computed from the start cell's state A (A=Empty -> set Cross, A=Cross -> set Empty). If A is `Queen`, no mass-fill occurs; the start cell is cycled once when long-press is detected.
 
