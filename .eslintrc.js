@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -26,4 +26,4 @@ module.exports = {
   settings: {
     react: { version: 'detect' },
   },
-};
+}

@@ -1,8 +1,13 @@
-module.exports = [
+import parser from '@typescript-eslint/parser'
+import tsPlugin from '@typescript-eslint/eslint-plugin'
+import reactPlugin from 'eslint-plugin-react'
+import reactHooks from 'eslint-plugin-react-hooks'
+
+export default [
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
     languageOptions: {
-      parser: require('@typescript-eslint/parser'),
+      parser,
       parserOptions: {
         ecmaVersion: 2024,
         sourceType: 'module',
@@ -10,9 +15,9 @@ module.exports = [
       },
     },
     plugins: {
-      '@typescript-eslint': require('@typescript-eslint/eslint-plugin'),
-      react: require('eslint-plugin-react'),
-      'react-hooks': require('eslint-plugin-react-hooks'),
+      '@typescript-eslint': tsPlugin,
+      react: reactPlugin,
+      'react-hooks': reactHooks,
     },
     settings: {
       react: { version: 'detect' },

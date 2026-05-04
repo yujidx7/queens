@@ -60,8 +60,11 @@ button {
 }
 .cell-empty { background: #fff; }
 .cell-cross { background: #f0f0f0; }
-.cell-queen { background: #ffe4b5; }
+.cell-queen { background: #ff8a00; }
 .cell-content { text-align: center; font-size: 1.2rem; }
+
+/* Make queen marker more prominent: filled black and larger */
+.cell-queen .cell-content { font-size: 2rem; font-weight: 900; color: #000; text-shadow: none; line-height: 1; }
 
 @media (max-width: 480px) {
   .board-container { width: 100%; padding: 6px; }

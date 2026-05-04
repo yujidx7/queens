@@ -23,7 +23,16 @@ if (typeof (globalThis as any).document === 'undefined') {
   const dom = new JSDOM('<!doctype html><html><body></body></html>')
   ;(globalThis as any).window = dom.window
   ;(globalThis as any).document = dom.window.document
-  ;(globalThis as any).navigator = dom.window.navigator
+  try {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: dom.window.navigator,
+      configurable: true,
+      writable: true,
+      enumerable: true,
+    })
+  } catch (e) {
+    // If navigator is a read-only getter on this environment, skip assigning it.
+  }
 }
 
 // minimal alert/confirm polyfills used by some UI code
