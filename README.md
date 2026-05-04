@@ -57,5 +57,5 @@ npm install
 npm run build
 
 # push built files (dist) to the gh-pages branch using git subtree
-git run deploy
+npm run deploy
 ```
