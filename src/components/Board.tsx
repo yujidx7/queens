@@ -23,16 +23,26 @@ const Cell = React.memo(function Cell({ r, c, cell, onToggle, region }: CellProp
   // region color via HSL based on region id
   const style: React.CSSProperties = {};
   if (region != null) {
-    const hue = Math.round((region * 360) / Math.max(1, 12));
-    // stronger saturation and clearer contrast for human distinction
-    const saturation = 80; // percent
-    const baseLight = 68; // slightly darker to make colors pop
-    style.background = `hsl(${hue} ${saturation}% ${baseLight}%)`;
-    // choose text color for legibility
-    const lightNum = baseLight;
-    style.color = lightNum < 60 ? '#fff' : '#111';
+    // Use a palette with explicit H/S/L to ensure visual distinctness.
+    // Only one green hue (140) is included. Avoid gray/desaturated colors.
+    const palette = [
+      { h: 0, s: 78, l: 60 },   // red
+      { h: 30, s: 78, l: 60 },  // orange
+      { h: 60, s: 78, l: 60 },  // yellow
+      { h: 140, s: 76, l: 60 }, // green (single green)
+      { h: 190, s: 78, l: 60 }, // teal
+      { h: 220, s: 78, l: 60 }, // blue
+      { h: 260, s: 78, l: 60 }, // indigo
+      { h: 300, s: 78, l: 60 }, // magenta
+    ];
+    const { h, s, l } = palette[region % palette.length];
+    style.background = `hsl(${h} ${s}% ${l}%)`;
+    // choose text color for legibility (black on light backgrounds, white on dark)
+    style.color = l < 60 ? '#fff' : '#111';
     // slightly darker border to keep cell separation visible
-    style.border = `1px solid hsl(${hue} ${Math.max(10, saturation - 60)}% ${Math.max(20, baseLight - 40)}%)`;
+    const borderSat = Math.max(10, s - 40);
+    const borderLight = Math.max(18, l - 18);
+    style.border = `1px solid hsl(${h} ${borderSat}% ${borderLight}%)`;
   }
   return (
     <div
@@ -111,6 +121,7 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
 
   // Drag/slide handling at grid level using pointer coordinates (works reliably for mouse and touch)
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const ignoreClickRef = useRef(false);
   const dragRef = useRef<{
     active: boolean;
     mode: 'place' | 'remove' | null;
@@ -287,6 +298,12 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
       }
     }
 
+    // prevent the following click event (which browsers fire after pointerup)
+    ignoreClickRef.current = true;
+    window.setTimeout(() => {
+      ignoreClickRef.current = false;
+    }, 350);
+
     // reset
     longRef.current.active = false;
     longRef.current.pointerId = undefined;
@@ -315,7 +332,10 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
                 r={r}
                 c={c}
                 cell={cell}
-                onToggle={onToggle}
+                onToggle={(pos) => {
+                  if (ignoreClickRef.current) return;
+                  onToggle(pos);
+                }}
                 region={regions ? regions[r][c] : null}
               />
               {violSet.has(`${r}-${c}`) && state.cells[r][c] === 'Queen' ? (

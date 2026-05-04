@@ -67,8 +67,8 @@ button {
   .board-container { width: 100%; padding: 6px; }
   .cell-content { font-size: 1.2rem; }
   /* ensure cells shrink a bit for small screens */
-  .board-grid { gap: 3px; }
-  .board-cell { padding: 4px; }
+  .board-grid { gap: 0; }
+  .board-cell { padding: 2px; }
 }
 
 /* ensure the board grid template columns are responsive by setting each cell to auto and using grid-template-columns from inline style in component */
