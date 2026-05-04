@@ -121,6 +121,21 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
     lastPos?: { r: number; c: number } | null;
   }>({ active: false, mode: null, moved: false, startPos: null, startValue: null, lastPos: null });
 
+  // dragRef enhancements for long-press/tap behavior
+  // longPress is triggered if press duration >= 0.33s (330ms) or user moves to another cell while pressing
+  const longRef = useRef<{
+    active: boolean;
+    pointerId?: number;
+    moved?: boolean;
+    startPos?: { r: number; c: number } | null;
+    startValue?: string | null;
+    lastPos?: { r: number; c: number } | null;
+    longPress: boolean;
+    timerId?: number | null;
+    touched: Set<string>;
+    applied: Set<string>;
+  }>({ active: false, moved: false, startPos: null, startValue: null, lastPos: null, longPress: false, timerId: null, touched: new Set() });
+
   function clientToCell(clientX: number, clientY: number) {
     const el = gridRef.current;
     if (!el) return null;
@@ -135,60 +150,112 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
     return { r, c };
   }
 
+  // Helper: set a cell to a specific target value. Prefer onSetCell if provided.
+  function setCellTo(pos: { r: number; c: number }, target: 'Empty' | 'Cross' | 'Queen') {
+    if (onSetCell) {
+      onSetCell(pos, target);
+      return;
+    }
+    // fallback: use onToggle to cycle until we reach target (best-effort)
+    const order: Array<'Empty' | 'Cross' | 'Queen'> = ['Empty', 'Cross', 'Queen'];
+    let cur = state.cells[pos.r][pos.c] as 'Empty' | 'Cross' | 'Queen';
+    let attempts = 0;
+    while (cur !== target && attempts < 3) {
+      onToggle(pos);
+      const idx = order.indexOf(cur);
+      cur = order[(idx + 1) % order.length];
+      attempts++;
+    }
+  }
+
+  function cycleCellOnce(pos: { r: number; c: number }) {
+    if (onSetCell) {
+      const cur = state.cells[pos.r][pos.c];
+      if (cur === 'Empty') onSetCell(pos, 'Cross');
+      else if (cur === 'Cross') onSetCell(pos, 'Queen');
+      else onSetCell(pos, 'Empty');
+    } else {
+      onToggle(pos);
+    }
+  }
   function onGridPointerDown(e: React.PointerEvent) {
     const pos = clientToCell(e.clientX, e.clientY);
     if (!pos) return;
     try {
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
     } catch {}
-    dragRef.current.active = true;
-    dragRef.current.pointerId = e.pointerId;
-    dragRef.current.moved = false;
-    dragRef.current.startPos = pos;
-    dragRef.current.lastPos = pos;
-    dragRef.current.startValue = state.cells[pos.r][pos.c];
-    // set mode immediately and apply change to the start cell so pointer-down affects it
-    const startVal = dragRef.current.startValue;
-    if (startVal === 'Cross') {
-      dragRef.current.mode = 'remove';
-      // remove cross from start cell
-      if (state.cells[pos.r][pos.c] === 'Cross') {
-        if (onSetCell) onSetCell(pos, 'Empty');
-        else onToggle(pos);
-      }
-    } else if (startVal === 'Empty') {
-      dragRef.current.mode = 'place';
-      if (state.cells[pos.r][pos.c] !== 'Cross') {
-        if (onSetCell) onSetCell(pos, 'Cross');
-        else onToggle(pos);
-      }
-    } else {
-      dragRef.current.mode = null;
+    longRef.current.active = true;
+    longRef.current.pointerId = e.pointerId;
+    longRef.current.moved = false;
+    longRef.current.startPos = pos;
+    longRef.current.lastPos = pos;
+    longRef.current.startValue = state.cells[pos.r][pos.c];
+    longRef.current.longPress = false;
+    longRef.current.touched = new Set([`${pos.r}-${pos.c}`]);
+    longRef.current.applied = new Set();
+
+    // start timer for long press (0.33s / 330ms)
+    if (longRef.current.timerId) {
+      window.clearTimeout(longRef.current.timerId);
+      longRef.current.timerId = null;
     }
+    longRef.current.timerId = window.setTimeout(() => {
+      longRef.current.longPress = true;
+      longRef.current.timerId = null;
+      // apply to start cell immediately when long press triggers
+      const start = longRef.current.startPos;
+      const A = longRef.current.startValue;
+      if (start && A != null) {
+        const target = A === 'Empty' ? 'Cross' : A === 'Cross' ? 'Empty' : null;
+        if (target) setCellTo(start, target);
+        else cycleCellOnce(start);
+        longRef.current.applied.add(`${start.r}-${start.c}`);
+      }
+    }, 330);
   }
 
   function onGridPointerMove(e: React.PointerEvent) {
-    if (!dragRef.current.active) return;
+    if (!longRef.current.active) return;
     const pos = clientToCell(e.clientX, e.clientY);
     if (!pos) return;
-    const last = dragRef.current.lastPos;
+    const last = longRef.current.lastPos;
     if (last && last.r === pos.r && last.c === pos.c) return;
-    dragRef.current.moved = true;
-    dragRef.current.lastPos = pos;
-    const startVal = dragRef.current.startValue;
-    if (dragRef.current.mode == null) {
-      if (startVal === 'Cross') dragRef.current.mode = 'remove';
-      else if (startVal === 'Empty') dragRef.current.mode = 'place';
-      else dragRef.current.mode = null;
+    longRef.current.moved = true;
+    longRef.current.lastPos = pos;
+    longRef.current.touched.add(`${pos.r}-${pos.c}`);
+    // moving to another cell counts as long press
+    if (!longRef.current.longPress) {
+      longRef.current.longPress = true;
+      if (longRef.current.timerId) {
+        window.clearTimeout(longRef.current.timerId);
+        longRef.current.timerId = null;
+      }
+      // apply to start cell if not already applied
+      const start = longRef.current.startPos;
+      const A = longRef.current.startValue;
+      if (start && A != null) {
+        const key = `${start.r}-${start.c}`;
+        if (!longRef.current.applied.has(key)) {
+          const target = A === 'Empty' ? 'Cross' : A === 'Cross' ? 'Empty' : null;
+          if (target) setCellTo(start, target);
+          else cycleCellOnce(start);
+          longRef.current.applied.add(key);
+        }
+      }
     }
-    const cell = state.cells[pos.r][pos.c];
-    if (cell === 'Queen') return;
-    if (dragRef.current.mode === 'place') {
-      if (onSetCell) onSetCell(pos, 'Cross');
-      else if (state.cells[pos.r][pos.c] !== 'Cross') onToggle(pos);
-    } else if (dragRef.current.mode === 'remove') {
-      if (onSetCell) onSetCell(pos, 'Empty');
-      else if (state.cells[pos.r][pos.c] === 'Cross') onToggle(pos);
+
+    // if already in longPress mode, apply to the new cell immediately
+    if (longRef.current.longPress) {
+      const A = longRef.current.startValue;
+      const key = `${pos.r}-${pos.c}`;
+      if (!longRef.current.applied.has(key) && A != null) {
+        const target = A === 'Empty' ? 'Cross' : A === 'Cross' ? 'Empty' : null;
+        if (target) setCellTo(pos, target);
+        else {
+          // if A is Queen, do not mass-apply to other cells
+        }
+        longRef.current.applied.add(key);
+      }
     }
   }
 
@@ -196,18 +263,39 @@ export default function Board({ state, onToggle, regions, onSetCell }: Props) {
     try {
       (e.currentTarget as Element).releasePointerCapture(e.pointerId);
     } catch {}
-    const wasMoved = !!dragRef.current.moved;
-    const start = dragRef.current.startPos;
-    if (!wasMoved && start) {
-      onToggle(start);
+    const start = longRef.current.startPos;
+    const wasLong = longRef.current.longPress;
+    const touched = Array.from(longRef.current.touched).map((s) => {
+      const [r, c] = s.split('-').map(Number);
+      return { r, c };
+    });
+
+    if (longRef.current.timerId) {
+      window.clearTimeout(longRef.current.timerId);
+      longRef.current.timerId = null;
     }
-    dragRef.current.active = false;
-    dragRef.current.mode = null;
-    dragRef.current.pointerId = undefined;
-    dragRef.current.moved = false;
-    dragRef.current.startPos = null;
-    dragRef.current.startValue = null;
-    dragRef.current.lastPos = null;
+
+    if (!wasLong && start) {
+      // Short press: cycle the start cell once
+      if (onSetCell) {
+        const cur = state.cells[start.r][start.c];
+        if (cur === 'Empty') onSetCell(start, 'Cross');
+        else if (cur === 'Cross') onSetCell(start, 'Queen');
+        else onSetCell(start, 'Empty');
+      } else {
+        onToggle(start);
+      }
+    }
+
+    // reset
+    longRef.current.active = false;
+    longRef.current.pointerId = undefined;
+    longRef.current.moved = false;
+    longRef.current.startPos = null;
+    longRef.current.startValue = null;
+    longRef.current.lastPos = null;
+    longRef.current.longPress = false;
+    longRef.current.touched.clear();
   }
 
   return (
