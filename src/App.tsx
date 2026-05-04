@@ -7,7 +7,7 @@ import { findHint } from './core/hintEngine';
 import * as SaveRepo from './core/saveRepository';
 import * as SettingsRepo from './core/settingsRepository';
 import * as StatsRepo from './core/statsRepository';
-import { encodeBase62FromString } from './utils/base62';
+import { encodeBase62FromString, decodeBase62ToString } from './utils/base62';
 import { isSolved } from './core/puzzleValidator';
 import { t, setLocale, getLocale } from './i18n';
 
@@ -74,6 +74,31 @@ export default function App() {
     // check saved session
     const s = SaveRepo.loadSession();
     setHasSaved(!!s);
+  }, []);
+
+  // If URL contains a shared puzzle payload (?p=...), decode and load it
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const code = params.get('p');
+      if (code) {
+        const json = decodeBase62ToString(code);
+        const def = JSON.parse(json) as {
+          size: number;
+          regions: any;
+          solution?: any;
+          seed?: string;
+        };
+        // apply puzzle definition and an empty state
+        const s = createEmptyState(def.size);
+        setPuzzle({ size: def.size, regions: def.regions, solution: def.solution, seed: def.seed, difficulty: undefined });
+        setState(s);
+        setHistory([s]);
+        setScreen('game');
+      }
+    } catch (e) {
+      // ignore malformed share codes
+    }
   }, []);
 
   useEffect(() => {
